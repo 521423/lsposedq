@@ -1,0 +1,72 @@
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
+
+class SuperstudyTaskManager:
+    def __init__(self, username, password):
+        self.session = requests.Session()
+        self.login_url = "https://passport2.chaoxing.com/login"
+        self.tasks_url = "https://mooc1-1.chaoxing.com/calendar/getEventList"
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        self.login(username, password)
+
+    def login(self, username, password):
+        # 这里需要处理加密参数，实际登录流程更复杂
+        login_data = {
+            "uname": username,
+            "password": password,
+            "refer": "http://i.mooc.chaoxing.com"
+        }
+        response = self.session.post(self.login_url, data=login_data, headers=self.headers)
+        if "登录成功" not in response.text:
+            raise Exception("登录失败，请检查账号密码")
+
+    def get_tasks(self):
+        response = self.session.get(self.tasks_url, headers=self.headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        tasks = []
+        for item in soup.select('.event-list li'):
+            try:
+                title = item.select_one('.title').text.strip()
+                course = item.select_one('.course').text.strip()
+                time_str = item.select_one('.time').text.strip()
+                status = item.select_one('.status').text.strip()
+                
+                # 转换时间格式
+                end_time = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
+                remaining = (end_time - datetime.now()).days
+                
+                tasks.append({
+                    "课程": course,
+                    "任务名称": title,
+                    "截止时间": end_time.strftime("%Y-%m-%d %H:%M"),
+                    "剩余天数": remaining,
+                    "状态": status
+                })
+            except Exception as e:
+                continue
+        return tasks
+
+    def show_tasks(self):
+        tasks = self.get_tasks()
+        print("\n📚 学习通任务一览")
+        print("="*60)
+        for idx, task in enumerate(tasks, 1):
+            status_icon = "✅" if "已完成" in task["状态"] else "⚠️"
+            print(f"{idx}. [{status_icon}] {task['课程']}")
+            print(f"  任务：{task['任务名称']}")
+            print(f"  截止：{task['截止时间']}（剩余{task['剩余天数']}天）")
+            print("-"*60)
+
+if __name__ == "__main__":
+    # 使用示例（需要输入真实账号密码）
+    try:
+        username = input("请输入学习通账号：")
+        password = input("请输入密码：")
+        manager = SuperstudyTaskManager(username, password)
+        manager.show_tasks()
+    except Exception as e:
+        print(f"发生错误：{str(e)}")
